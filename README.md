@@ -2,7 +2,11 @@
 
 Pick an aircraft and watch its entire day replay on a map — where it flew, when it sat on the ground, and the honest gaps where no receiver heard it.
 
-Built with Vite + React + Leaflet, styled in a Delta-inspired light palette. The demo loads instantly with a bundled sample day (a Cessna 208B cargo feeder hopping around Idaho and Montana); add OpenSky API credentials to replay real aircraft.
+Built with Vite + React + Leaflet, styled in a Delta-inspired light palette over a satellite basemap. It opens on a real saved flight-day (a Delta 737-900, ORD→LAX→Nashville, recorded from the OpenSky Network) and starts playing immediately.
+
+**Live demo:** https://plane-day-path.vercel.app
+
+> **Live search of arbitrary aircraft only works when you run the app locally.** OpenSky's API blocks connections from cloud-server IPs (including Vercel's), so the hosted demo can't reach it — it shows the bundled saved flight instead. Run it locally with your own OpenSky credentials (below) to look up any aircraft, any day. This is a restriction on OpenSky's side, not a bug in the app.
 
 ## Run it
 
@@ -11,7 +15,7 @@ npm install
 npm run dev
 ```
 
-Open the printed URL. The app starts on a bundled sample day and begins playing immediately — no setup needed.
+Open the printed URL. The app starts on the saved Delta flight and begins playing immediately — no setup needed. Add OpenSky credentials (below) to search any other aircraft.
 
 ```bash
 npm test        # unit tests for the interpolation library
@@ -31,11 +35,13 @@ npm run build   # production build
 
 The same honesty shows on the map (solid white = measured, dashed blue = interpolated, faint dots = coverage gap) and on the day strip (navy blocks = flying, thin gray bar = on the ground, hatching = no coverage).
 
-**Loading a real aircraft.** Add OpenSky credentials (next section), then enter an aircraft in the top-right box and pick a date:
+**Loading a real aircraft** *(local only — see the note at the top).* Run the app locally with OpenSky credentials (next section), then enter an aircraft in the top-right box and pick a date:
 
 - Use the **ICAO24 hex** (e.g. `ac4963`) — every tracker site shows it on an aircraft's page — or a **US registration** like `N714CB`, which is resolved to hex automatically.
 - Pick a UTC date **2+ days in the past** (OpenSky processes history with a lag) and within the last ~30 days.
 - Airliners make good demos: overnight red-eyes show real coverage gaps, and same-airport turnarounds render as ground time.
+
+On the hosted demo this search returns a friendly "run it locally" message and keeps showing the saved flight, because the server can't reach OpenSky from the cloud.
 
 ## The interpolation story
 
@@ -52,7 +58,7 @@ So [src/lib/interpolate.js](src/lib/interpolate.js) classifies every stretch bet
 
 Positions between pings are great-circle interpolated for smooth playback, and the aircraft marker itself confesses: it's a solid red triangle on measured track, and turns hollow whenever its position is an estimate. Interpolation is never presented as ground truth.
 
-The gaps are a feature, not a bug — a hatched block over the Bitterroots tells you exactly where the receiver network can't see.
+The gaps are a feature, not a bug — a hatched block tells you exactly where the receiver network went dark, like the stretches over the plains on the saved flight's overnight leg.
 
 ## Getting OpenSky API credentials
 
@@ -72,10 +78,10 @@ Notes on the free tier:
 
 ## Architecture
 
-- [api/track.js](api/track.js) — the only backend: a Vercel-convention serverless function that holds the OpenSky credentials, exchanges them for an OAuth2 token, fetches the day's flights + per-flight tracks, stitches and caches them. Without credentials it answers `503 NO_CREDENTIALS` and the frontend falls back to the sample day.
+- [api/track.js](api/track.js) — the only backend: a Vercel-convention serverless function that holds the OpenSky credentials, exchanges them for an OAuth2 token, fetches the day's flights + per-flight tracks, stitches and caches them. Reachable only from non-cloud networks (OpenSky blocks cloud IPs); without credentials or connectivity the frontend keeps showing the saved flight.
 - [vite.config.js](vite.config.js) — mounts that same function on the dev server, so local dev matches the deployed layout with no second process.
 - [src/lib/interpolate.js](src/lib/interpolate.js) — segment classification + great-circle position math (unit-tested).
-- [src/lib/sampleDay.js](src/lib/sampleDay.js) — the deterministic synthesized demo day, deliberately sparsified so all four segment classes appear. Always labeled **SAMPLE DATA** in the UI.
+- [src/lib/bundledDay.js](src/lib/bundledDay.js) — the real saved flight-day (recorded from OpenSky) shown by default, so the hosted demo has genuine ADS-B data. Labeled **Saved flight** in the UI.
 - [src/Map.jsx](src/Map.jsx) — Leaflet map; the full day renders dimmed, and flown track fills in at full strength as playback advances.
 - [src/DayStrip.jsx](src/DayStrip.jsx) — the 24-hour scrubber; the day's structure *is* the rendering.
 
@@ -83,13 +89,6 @@ Timestamps are UTC internally everywhere; the clock shows UTC first and your loc
 
 ## Deploying
 
-The repo is Vercel-ready as-is: `api/track.js` becomes a serverless function, Vite is auto-detected. Install the [Vercel CLI](https://vercel.com/docs/cli), then:
+The repo is Vercel-ready as-is: import it in the Vercel dashboard and `api/track.js` becomes a serverless function with Vite auto-detected. [vercel.json](vercel.json) pins the function to Frankfurt (`fra1`), the region closest to OpenSky's servers. Add `OPENSKY_CLIENT_ID` and `OPENSKY_CLIENT_SECRET` as environment variables if you want to try live lookups.
 
-```bash
-vercel
-vercel env add OPENSKY_CLIENT_ID
-vercel env add OPENSKY_CLIENT_SECRET
-vercel --prod
-```
-
-(Without the env vars the deployed site still works — it just stays on the sample day.)
+Note, though: **OpenSky blocks cloud-server IPs**, so even a correctly configured deployment can't fetch live data — confirmed from two AWS regions, both timing out on the TCP connection. The deployed site therefore serves the bundled saved flight and reports a clear "run it locally" message on live searches. Live lookups of arbitrary aircraft are a local-only feature; everything else works identically deployed.

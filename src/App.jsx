@@ -3,7 +3,7 @@ import MapView from './Map.jsx';
 import DayStrip from './DayStrip.jsx';
 import { Controls, Clock } from './Controls.jsx';
 import { normalizeTrack, buildSegments, positionAt, injectParkedTime } from './lib/interpolate.js';
-import { buildSampleDay, SAMPLE_DATE } from './lib/sampleDay.js';
+import { BUNDLED_DAY, BUNDLED_DATE } from './lib/bundledDay.js';
 
 const REDUCED_MOTION =
   typeof window !== 'undefined' &&
@@ -53,7 +53,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [idInput, setIdInput] = useState('');
-  const [dateInput, setDateInput] = useState(SAMPLE_DATE);
+  const [dateInput, setDateInput] = useState(BUNDLED_DATE);
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(120);
@@ -90,9 +90,10 @@ export default function App() {
     setPlaying(!REDUCED_MOTION && wps.length > 1);
   }, []);
 
-  // The bundled sample day is the instant demo; searches go to the API.
+  // A real saved flight-day is the instant default; live searches go to
+  // the API (which only reaches OpenSky when running locally).
   useEffect(() => {
-    applyData(buildSampleDay());
+    applyData(BUNDLED_DAY);
   }, [applyData]);
 
   const loadDay = useCallback(
@@ -112,11 +113,13 @@ export default function App() {
         }
         applyData(body);
       } catch (err) {
-        setError(
-          err.code === 'NO_CREDENTIALS'
-            ? 'Live lookups need OpenSky API credentials. Create an API client on opensky-network.org, put the id and secret in .env, and restart (walkthrough in the README). Showing the sample day meanwhile.'
-            : err.message
-        );
+        const messages = {
+          NO_CREDENTIALS:
+            'Live lookups need OpenSky API credentials. Create an API client on opensky-network.org, add credentials.json (walkthrough in the README), and restart. Showing the saved flight meanwhile.',
+          UPSTREAM_UNREACHABLE:
+            'Live search isn’t available on the hosted demo — OpenSky blocks cloud servers, so lookups only work when you run the app locally (see the README). Showing the saved flight.',
+        };
+        setError(messages[err.code] ?? err.message);
       } finally {
         setLoading(false);
       }
@@ -202,9 +205,11 @@ export default function App() {
           {data?.date} · ICAO24 {data?.icao24?.toUpperCase()}
         </p>
         {route && <p className="route mono">{route}</p>}
-        {data?.source === 'sample' && (
+        {data && data.source !== 'opensky' && (
           <>
-            <span className="badge">Sample data</span>
+            <span className="badge">
+              {data.source === 'bundled' ? 'Saved flight' : 'Sample data'}
+            </span>
             <p className="note">{data.note}</p>
           </>
         )}

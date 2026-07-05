@@ -14,6 +14,34 @@ const AUTH_URL =
 const API = 'https://opensky-network.org/api';
 const CACHE_DIR = path.join(os.tmpdir(), 'plane-day-path-cache');
 
+// OpenSky's track endpoint can be slow; give the function room beyond
+// Vercel's 10s Hobby default so a slow upstream isn't cut off mid-fetch.
+export const maxDuration = 60;
+
+// A single fetch with an explicit timeout and one retry. Node's global
+// fetch (undici) surfaces every network-level problem as an opaque
+// "fetch failed"; wrapping it lets us fail with a clear reason and ride
+// out a transient hiccup from OpenSky.
+async function fetchWithTimeout(url, options = {}, { timeoutMs = 15000, retries = 1 } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: ac.signal });
+    } catch (err) {
+      if (attempt >= retries) {
+        const reason = err.cause?.code || err.cause?.message || err.message;
+        throw Object.assign(new Error(`Could not reach OpenSky (${reason})`), {
+          code: 'UPSTREAM_UNREACHABLE',
+        });
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
 // OAuth2 access tokens last ~30 min; keep one per warm instance.
 let cachedToken = { value: null, expiresAt: 0 };
 
@@ -41,7 +69,7 @@ async function getToken(clientId, clientSecret) {
   if (cachedToken.value && Date.now() < cachedToken.expiresAt - 60_000) {
     return cachedToken.value;
   }
-  const resp = await fetch(AUTH_URL, {
+  const resp = await fetchWithTimeout(AUTH_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -64,7 +92,7 @@ async function getToken(clientId, clientSecret) {
 }
 
 async function openskyGet(pathAndQuery, token) {
-  const resp = await fetch(`${API}${pathAndQuery}`, {
+  const resp = await fetchWithTimeout(`${API}${pathAndQuery}`, {
     headers: { authorization: `Bearer ${token}` },
   });
   if (resp.status === 404) return null; // OpenSky's "no data" answer
@@ -85,7 +113,9 @@ async function openskyGet(pathAndQuery, token) {
 async function resolveIcao24(input) {
   const id = input.trim().toLowerCase();
   if (/^[0-9a-f]{6}$/.test(id)) return id;
-  const resp = await fetch(`https://hexdb.io/reg-hex?reg=${encodeURIComponent(input.trim())}`);
+  const resp = await fetchWithTimeout(
+    `https://hexdb.io/reg-hex?reg=${encodeURIComponent(input.trim())}`
+  );
   if (resp.ok) {
     const hex = (await resp.text()).trim().toLowerCase();
     if (/^[0-9a-f]{6}$/.test(hex)) return hex;
@@ -190,7 +220,11 @@ export default async function handler(req, res) {
   } catch (err) {
     const code = err.code ?? 'INTERNAL';
     const status =
-      code === 'UNRESOLVED_ID' ? 404 : code === 'RATE_LIMITED' ? 503 : code === 'AUTH_FAILED' ? 502 : 502;
+      code === 'UNRESOLVED_ID'
+        ? 404
+        : code === 'RATE_LIMITED' || code === 'UPSTREAM_UNREACHABLE'
+        ? 503
+        : 502;
     return res.status(status).json({ code, message: err.message });
   }
 }

@@ -2,7 +2,7 @@
 
 Pick an aircraft and watch its entire day replay on a map — where it flew, when it sat on the ground, and the honest gaps where no receiver heard it.
 
-Built with Vite + React + Leaflet, styled in a Delta-inspired light palette over a satellite basemap. It opens on a real saved flight-day (a Delta 737-900, ORD→LAX→Nashville, recorded from the OpenSky Network) and starts playing immediately.
+Built with Vite + React + Leaflet, styled in a Delta-inspired light palette over a satellite basemap. It opens on a real saved flight-day — **Delta 1, New York JFK → London Heathrow → Salt Lake City**, recorded from the OpenSky Network — and starts playing immediately. A second example (a domestic Delta day) is one click away in the ident card.
 
 **Live demo:** https://plane-day-path.vercel.app
 
@@ -58,7 +58,7 @@ So [src/lib/interpolate.js](src/lib/interpolate.js) classifies every stretch bet
 
 Positions between pings are great-circle interpolated for smooth playback, and the aircraft marker itself confesses: it's a solid red triangle on measured track, and turns hollow whenever its position is an estimate. Interpolation is never presented as ground truth.
 
-The gaps are a feature, not a bug — a hatched block tells you exactly where the receiver network went dark, like the stretches over the plains on the saved flight's overnight leg.
+The gaps are a feature, not a bug — a hatched block tells you exactly where the receiver network went dark. On the transatlantic example the whole mid-ocean crossing is one long gap: there are no ground receivers out over the Atlantic, so the plane goes dark leaving Newfoundland and reappears near Ireland.
 
 ## Getting OpenSky API credentials
 
@@ -81,7 +81,7 @@ Notes on the free tier:
 - [api/track.js](api/track.js) — the only backend: a Vercel-convention serverless function that holds the OpenSky credentials, exchanges them for an OAuth2 token, fetches the day's flights + per-flight tracks, stitches and caches them. Reachable only from non-cloud networks (OpenSky blocks cloud IPs); without credentials or connectivity the frontend keeps showing the saved flight.
 - [vite.config.js](vite.config.js) — mounts that same function on the dev server, so local dev matches the deployed layout with no second process.
 - [src/lib/interpolate.js](src/lib/interpolate.js) — segment classification + great-circle position math (unit-tested).
-- [src/lib/bundledDay.js](src/lib/bundledDay.js) — the real saved flight-day (recorded from OpenSky) shown by default, so the hosted demo has genuine ADS-B data. Labeled **Saved flight** in the UI.
+- [src/lib/bundledDay.js](src/lib/bundledDay.js) — real saved flight-days (recorded from OpenSky) shown by default — a transatlantic crossing and a domestic day, switchable in the ident card — so the hosted demo has genuine ADS-B data. Labeled **Saved flight** in the UI.
 - [src/Map.jsx](src/Map.jsx) — Leaflet map; the full day renders dimmed, and flown track fills in at full strength as playback advances.
 - [src/DayStrip.jsx](src/DayStrip.jsx) — the 24-hour scrubber; the day's structure *is* the rendering.
 

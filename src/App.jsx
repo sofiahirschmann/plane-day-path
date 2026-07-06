@@ -3,11 +3,22 @@ import MapView from './Map.jsx';
 import DayStrip from './DayStrip.jsx';
 import { Controls, Clock } from './Controls.jsx';
 import { normalizeTrack, buildSegments, positionAt, injectParkedTime } from './lib/interpolate.js';
-import { BUNDLED_DAY, BUNDLED_DATE } from './lib/bundledDay.js';
+import { BUNDLED_DAY, BUNDLED_DAYS, BUNDLED_DATE } from './lib/bundledDay.js';
 
 const REDUCED_MOTION =
   typeof window !== 'undefined' &&
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+// For the route line: US airports are ICAO K### where dropping the K gives
+// the familiar IATA code, but elsewhere ICAO and IATA differ, so map the
+// hubs the app is likely to show. Unknown codes fall back to the raw code.
+const IATA = {
+  EGLL: 'LHR', EGKK: 'LGW', EGCC: 'MAN', EHAM: 'AMS', LFPG: 'CDG',
+  LFPO: 'ORY', EDDF: 'FRA', EDDM: 'MUC', LIRF: 'FCO', LIMC: 'MXP',
+  LEMD: 'MAD', LEBL: 'BCN', LPPT: 'LIS', LGAV: 'ATH', EIDW: 'DUB',
+  LSZH: 'ZRH', LOWW: 'VIE', EKCH: 'CPH', ESSA: 'ARN', ENGM: 'OSL',
+};
+const airportLabel = (c) => (c ? IATA[c] ?? c.replace(/^K(?=[A-Z]{3}$)/, '') : '——');
 
 const Widget = ({ size = 10 }) => (
   <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
@@ -96,6 +107,16 @@ export default function App() {
     applyData(BUNDLED_DAY);
   }, [applyData]);
 
+  const selectBundled = useCallback(
+    (day) => {
+      setError(null);
+      setIdInput('');
+      setDateInput(day.date);
+      applyData(day);
+    },
+    [applyData]
+  );
+
   const loadDay = useCallback(
     async (icao24, date) => {
       setLoading(true);
@@ -182,9 +203,7 @@ export default function App() {
 
   const route = useMemo(() => {
     if (!data?.flights?.length) return null;
-    const codes = [data.flights[0].from, ...data.flights.map((f) => f.to)].map((c) =>
-      c ? c.replace(/^K(?=[A-Z]{3}$)/, '') : '——'
-    );
+    const codes = [data.flights[0].from, ...data.flights.map((f) => f.to)].map(airportLabel);
     return codes.join(' → ');
   }, [data]);
 
@@ -212,6 +231,27 @@ export default function App() {
             </span>
             <p className="note">{data.note}</p>
           </>
+        )}
+        {BUNDLED_DAYS.length > 1 && (
+          <div className="examples">
+            <span className="examples-label">Example flights</span>
+            <div className="examples-chips">
+              {BUNDLED_DAYS.map((day) => {
+                const active = data?.source === 'bundled' && data.icao24 === day.icao24;
+                return (
+                  <button
+                    key={day.icao24}
+                    type="button"
+                    className={active ? 'active' : ''}
+                    aria-pressed={active}
+                    onClick={() => selectBundled(day)}
+                  >
+                    {day.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
         <ul className="legend">
           {LEGEND.map(({ label, swatch }) => (

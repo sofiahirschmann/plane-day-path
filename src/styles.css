@@ -146,6 +146,48 @@ body {
   margin-top: 6px;
 }
 
+.examples {
+  margin-top: 12px;
+}
+
+.examples-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--slate);
+  margin-bottom: 6px;
+}
+
+.examples-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.examples-chips button {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--navy);
+  background: var(--sky);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.examples-chips button:hover {
+  border-color: var(--slate);
+}
+
+.examples-chips button.active {
+  color: #fff;
+  background: var(--navy);
+  border-color: var(--navy);
+}
+
 .legend {
   list-style: none;
   margin-top: 12px;
